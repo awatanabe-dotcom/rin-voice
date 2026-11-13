@@ -60,6 +60,15 @@ h1{font-size:1.3rem;font-weight:900;margin:0}
 .lenbar{height:8px;background:var(--soft);border-radius:4px;margin-top:4px;overflow:hidden}
 .lenbar i{display:block;height:100%;width:0;background:var(--accent);border-radius:4px}
 
+.hint-box{margin-top:12px;background:var(--bg);border-radius:16px;padding:12px 14px}
+.hint-box[hidden]{display:none}
+.hint-box .hk{font-size:.8rem;color:var(--muted)}
+.hint-box .ht{display:block;font-size:1.15rem;font-weight:900;margin:2px 0 4px}
+.hint-box p{margin:0;font-size:.92rem}
+.hint-box ul{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:6px}
+.hint-box li{font-size:.88rem;padding-left:1em;text-indent:-1em}
+.hint-box li::before{content:"・"}
+.hint-box .hn{margin-top:10px;font-size:.75rem;color:var(--muted)}
 .meter{position:relative;height:14px;background:var(--soft);border-radius:7px;margin-top:16px;overflow:hidden}
 .meter i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--line);border-radius:7px}
 .meter b{position:absolute;top:0;bottom:0;width:3px;background:var(--ink);opacity:.6}
@@ -106,6 +115,13 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
       <div class="chip"><span class="k">高さ</span><span class="v" id="cPitch">—</span><span class="s" id="cPitchS">&nbsp;</span></div>
       <div class="chip"><span class="k">語尾</span><span class="v" id="cEnd">—</span><span class="s" id="cEndS">&nbsp;</span></div>
       <div class="chip"><span class="k">大きさ</span><span class="v" id="cVol">—</span><span class="s" id="cVolS">&nbsp;</span></div>
+    </div>
+    <div class="hint-box" id="hint" hidden>
+      <span class="hk">気持ちのヒント</span>
+      <span class="ht" id="hintT"></span>
+      <p id="hintP"></p>
+      <ul id="hintL"></ul>
+      <p class="hn">一般的な傾向です。猫によって違うので、しっぽや耳、鳴いている場所とあわせて見てください。</p>
     </div>
     <div class="meter" aria-hidden="true"><i id="lvl"></i><b id="th"></b></div>
     <div class="meter-cap">青い棒が黒い線を越えると、声として記録します</div>
@@ -305,6 +321,28 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     return '<path class="env" d="'+env+'"/>' + (path ? '<path class="pitch" d="'+path+'" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>' : '');
   }
 
+  function hints(r){
+    var main, extra=[], t=r.type, d=r.dur;
+    if(t==='meow'){
+      if(d<0.25) main=['あいさつ・返事','短く「ミャッ」と鳴くのは、あいさつや「なに？」という返事のことが多いと言われます。'];
+      else if(d<0.8) main=['お願い・呼びかけ','ふつうの長さの鳴き声は、ごはん・遊んでほしい・なでてほしいなど、人へのお願いや呼びかけのことが多いです。'];
+      else main=['強いお願い・不満','長く伸ばす鳴き声は、「早く！」という強いお願いや、ドアを開けてほしい・待たされているといった不満のことがあります。'];
+    } else if(t==='yowl') main=['不安・落ち着かない','低く長い声は、不安やストレス、避妊・去勢をしていない猫では発情の呼び声のことがあります。急に増えたときや夜に何度も鳴くときは、体の不調のこともあるので獣医さんに相談してください。'];
+    else if(t==='hiss') main=['こわい・近づかないで','怖がっていたり警戒しているときのサインです。無理に近づかず、そっとしておくのがよいとされます。'];
+    else if(t==='purr') main=['くつろぎ（ときどき不調）','ゴロゴロは満足しているときが多いですが、具合が悪いときに自分を落ち着かせるために鳴らすこともあります。'];
+    else main=['鳴き声以外の音かも','物音や人の声を拾った可能性があります。'];
+    if(t==='meow'||t==='yowl'){
+      if(r.repeat) extra.push('続けて鳴いているときは、「気づいて！」という気持ちが強いことが多いです。');
+      if(r.endLabel.indexOf('上がる')===0) extra.push('語尾が上がるのは、問いかけや「ねえ」と呼びかける気持ちのことが多いです。');
+      else if(r.endLabel.indexOf('下がる')===0) extra.push('語尾が下がるのは、不満やしぶしぶといった気持ちのことがあります。');
+      if(t==='meow' && r.pitchLabel==='高め') extra.push('高めの声は、甘えたいときや親しみを向けているときに出やすいと言われます。');
+      else if(t==='meow' && r.pitchLabel==='低め') extra.push('低めの声は、不満や警戒の気持ちが混ざっていることがあります。');
+      if(r.vol==='小さい') extra.push('小さな声は、控えめなお願いや甘えのことがあります。');
+      else if(r.vol==='大きい') extra.push('大きな声は、急いでいる・強く伝えたい気持ちのことがあります。');
+    }
+    return {title:main[0], text:main[1], extra:extra.slice(0,3)};
+  }
+
   function showResult(r){
     current=r;
     $('kind').textContent=r.kind;
@@ -316,6 +354,11 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     $('cPitch').textContent = r.pitchLabel; $('cPitchS').textContent = r.pitchSub;
     $('cEnd').textContent = r.endLabel; $('cEndS').textContent = r.endSub;
     $('cVol').textContent = r.vol; $('cVolS').textContent = r.volSub;
+    var h=hints(r);
+    $('hint').hidden=false;
+    $('hintT').textContent=h.title; $('hintP').textContent=h.text;
+    var ul=$('hintL'); ul.innerHTML='';
+    h.extra.forEach(function(x){ var li=document.createElement('li'); li.textContent=x; ul.appendChild(li); });
   }
 
   function wordText(r){ return r.units.map(function(x){return x.u;}).join(''); }
@@ -332,7 +375,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
       b.querySelector('.t').textContent=hhmm(r.ts);
       var w=b.querySelector('.w'); w.textContent=wordText(r);
       var info=document.createElement('span'); info.className='i';
-      info.textContent = r.dur.toFixed(1)+'秒・高さ'+r.pitchLabel+'・語尾'+r.endLabel+'・'+r.vol;
+      info.textContent = hints(r).title+'｜'+r.dur.toFixed(1)+'秒・高さ'+r.pitchLabel+'・語尾'+r.endLabel+'・'+r.vol;
       w.appendChild(info);
       b.querySelector('svg').innerHTML = contourSvg(r.contour,64,28,2);
       b.addEventListener('click', function(){ showResult(history[idx]); $('stage').scrollIntoView({behavior:'smooth',block:'start'}); });
@@ -364,6 +407,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     setStatus('聞いています', 'on');
     if(dur<0.08 || frames.length<3) return;
     var r=analyze(frames, e.floor, dur);
+    r.repeat = !!(history[0] && r.ts - history[0].ts < 5000 && history[0].type!=='other');
     showResult(r);
     history.unshift(r); if(history.length>40) history.length=40;
     saveHistory(); renderHistory();
