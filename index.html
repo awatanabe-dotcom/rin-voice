@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>りんちゃんの声</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E8EEEA; --surface:#F8FAF7; --ink:#22303A; --muted:#5B6870;
+  --accent:#E0952A; --accent-ink:#2A1800; --line:#4F7AA6; --soft:#D6E0DA; --flash:#FBE1B0;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#192026; --surface:#232C33; --ink:#EEF0EA; --muted:#A2AEB4;
+    --accent:#F2B24C; --accent-ink:#231500; --line:#8DB3DA; --soft:#33404A; --flash:#5A4319;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#192026; --surface:#232C33; --ink:#EEF0EA; --muted:#A2AEB4;
+  --accent:#F2B24C; --accent-ink:#231500; --line:#8DB3DA; --soft:#33404A; --flash:#5A4319;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  font-weight:500;line-height:1.6;-webkit-text-size-adjust:100%}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.3rem;font-weight:900;margin:0}
+.lead{margin:2px 0 0;color:var(--muted);font-size:.9rem}
+
+.stage{margin-top:16px;background:var(--surface);border-radius:28px;padding:18px 16px 16px;transition:background-color .7s ease-out}
+.stage.flash{background:var(--flash);transition:none}
+.status{display:flex;align-items:center;gap:8px;font-size:.92rem;color:var(--muted);min-height:1.6em}
+.dot{width:11px;height:11px;border-radius:50%;background:var(--soft);flex:none}
+.dot.on{background:var(--line)}
+.dot.voice{background:var(--accent)}
+.kind{margin:10px 0 0;text-align:center;font-weight:700;color:var(--muted);min-height:1.6em}
+.word{display:flex;align-items:center;justify-content:center;height:160px;white-space:nowrap;font-weight:900;overflow:hidden}
+.word span{display:inline-block;line-height:1}
+.word.empty{color:var(--muted);font-size:2.6rem;letter-spacing:.2em}
+.contour{display:block;width:100%;height:48px}
+.contour .env{fill:var(--soft)}
+.contour .pitch{fill:none;stroke:var(--line);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.contour-cap{display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-top:2px}
+
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.chip{background:var(--bg);border-radius:16px;padding:8px 12px}
+.chip .k{font-size:.8rem;color:var(--muted)}
+.chip .v{display:block;font-size:1.15rem;font-weight:900}
+.chip .s{font-size:.8rem;color:var(--muted)}
+.lenbar{height:8px;background:var(--soft);border-radius:4px;margin-top:4px;overflow:hidden}
+.lenbar i{display:block;height:100%;width:0;background:var(--accent);border-radius:4px}
+
+.meter{position:relative;height:14px;background:var(--soft);border-radius:7px;margin-top:16px;overflow:hidden}
+.meter i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--line);border-radius:7px}
+.meter b{position:absolute;top:0;bottom:0;width:3px;background:var(--ink);opacity:.6}
+.meter-cap{font-size:.75rem;color:var(--muted);margin-top:2px}
+
+.controls{margin-top:16px;display:grid;gap:12px}
+button{font:inherit;cursor:pointer}
+.primary{min-height:58px;border:none;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:1.1rem;font-weight:900}
+.primary.stop{background:var(--ink);color:var(--surface)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--line);outline-offset:3px}
+.sens{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;font-size:.92rem}
+.sens input{width:100%;accent-color:var(--accent)}
+.hint{font-size:.8rem;color:var(--muted);margin:0}
+.error{background:var(--flash);border-radius:16px;padding:10px 14px;font-size:.9rem;margin:0}
+.error[hidden]{display:none}
+
+h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-content:space-between;align-items:baseline}
+.clear{border:none;background:none;color:var(--muted);font-size:.85rem;text-decoration:underline;padding:4px}
+.hist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.hist button{width:100%;display:grid;grid-template-columns:3.2em 1fr 64px;align-items:center;gap:10px;text-align:left;
+  background:var(--surface);color:var(--ink);border:none;border-radius:16px;padding:10px 12px}
+.hist .t{font-size:.8rem;color:var(--muted)}
+.hist .w{font-weight:900;font-size:1.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist .i{display:block;font-weight:500;font-size:.78rem;color:var(--muted)}
+.hist svg{width:64px;height:28px}
+.none{color:var(--muted);font-size:.9rem}
+.note{margin-top:24px;font-size:.8rem;color:var(--muted)}
+@media (prefers-reduced-motion: reduce){ .stage{transition:none} }
+</style>
+</head>
+<body>
+<main>
+  <h1>りんちゃんの声</h1>
+  <p class="lead">鳴き声の長さ・高さ・大きさを、文字と線で表示します。</p>
+
+  <section class="stage" id="stage" aria-live="polite">
+    <div class="status"><span class="dot" id="dot"></span><span id="status">止まっています</span></div>
+    <p class="kind" id="kind"></p>
+    <div class="word empty" id="word">・・・</div>
+    <svg class="contour" id="contour" viewBox="0 0 100 50" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <div class="contour-cap"><span>はじめ</span><span>線が上がると声が高くなっています</span><span>おわり</span></div>
+    <div class="chips">
+      <div class="chip"><span class="k">長さ</span><span class="v" id="cLen">—</span><span class="s" id="cLenS">&nbsp;</span><div class="lenbar"><i id="lenBar"></i></div></div>
+      <div class="chip"><span class="k">高さ</span><span class="v" id="cPitch">—</span><span class="s" id="cPitchS">&nbsp;</span></div>
+      <div class="chip"><span class="k">語尾</span><span class="v" id="cEnd">—</span><span class="s" id="cEndS">&nbsp;</span></div>
+      <div class="chip"><span class="k">大きさ</span><span class="v" id="cVol">—</span><span class="s" id="cVolS">&nbsp;</span></div>
+    </div>
+    <div class="meter" aria-hidden="true"><i id="lvl"></i><b id="th"></b></div>
+    <div class="meter-cap">青い棒が黒い線を越えると、声として記録します</div>
+  </section>
+
+  <div class="controls">
+    <p class="error" id="err" hidden></p>
+    <button class="primary" id="toggle">聞き取りを始める</button>
+    <label class="sens"><span>感度</span><input type="range" id="sens" min="1" max="10" step="1" value="6"><span id="sensV">6</span></label>
+    <p class="hint">関係ない音まで拾うときは感度を下げ、鳴いても反応しないときは上げてください。</p>
+  </div>
+
+  <h2>これまでの声 <button class="clear" id="clear">履歴を消す</button></h2>
+  <ul class="hist" id="hist"></ul>
+
+  <p class="note">文字は音の測定からの目安です。テレビや人の声も拾うことがあります。りんちゃんの近くにiPhoneを置くと、正確になります。</p>
+</main>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var MINF = 150, MAXF = 2000, HKEY = 'rin-voice-history';
+  var ctx = null, analyser = null, stream = null, raf = 0, running = false, wake = null;
+  var timeBuf, freqBuf, sr = 48000;
+  var floorDb = -60, startT = 0, aboveCount = 0, ev = null, lastLive = 0;
+  var silentCount = 0, silentWarned = false;
+  var margin = 14;
+  var history = [];
+  var current = null;
+
+  // ---------- helpers ----------
+  function median(a){ if(!a.length) return 0; var b = a.slice().sort(function(x,y){return x-y;}); var m = b.length>>1; return b.length%2 ? b[m] : (b[m-1]+b[m])/2; }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function semis(f, ref){ return 12*Math.log2(f/ref); }
+  function toHira(s){ return s.replace(/[\u30A1-\u30F6]/g, function(c){ return String.fromCharCode(c.charCodeAt(0)-0x60); }); }
+  function rep(x,n){ var a=[]; for(var i=0;i<n;i++) a.push(x); return a; }
+
+  function rmsDb(buf){ var s=0; for(var i=0;i<buf.length;i++) s+=buf[i]*buf[i]; return 20*Math.log10(Math.sqrt(s/buf.length)+1e-9); }
+
+  function yin(buf){
+    var W = 1024;
+    var tMin = Math.floor(sr/MAXF), tMax = Math.min(Math.floor(sr/MINF), buf.length-W-1);
+    var c = new Float32Array(tMax+1); c[0]=1;
+    var run = 0, t, i, s, v;
+    for(t=1;t<=tMax;t++){
+      s=0; for(i=0;i<W;i++){ v=buf[i]-buf[i+t]; s+=v*v; }
+      run+=s; c[t] = run>0 ? s*t/run : 1;
+    }
+    var tau=-1;
+    for(t=tMin;t<=tMax;t++){
+      if(c[t]<0.15){ while(t+1<=tMax && c[t+1]<c[t]) t++; tau=t; break; }
+    }
+    if(tau<0){
+      var mi=tMin; for(t=tMin;t<=tMax;t++) if(c[t]<c[mi]) mi=t;
+      if(c[mi]<0.3) tau=mi; else return 0;
+    }
+    var bt=tau;
+    if(tau>1 && tau<tMax){ var a=c[tau-1], b=c[tau], d=c[tau+1], den=a+d-2*b; if(den!==0) bt=tau+0.5*(a-d)/den; }
+    var f = sr/bt;
+    return (f>=MINF && f<=MAXF) ? f : 0;
+  }
+
+  function spectral(freq){
+    var n=freq.length, binHz=sr/2/n;
+    var lo=Math.max(1,Math.floor(100/binHz)), hi=Math.min(n-1,Math.floor(8000/binHz));
+    var sum=0,wsum=0,logsum=0,cnt=0;
+    for(var i=lo;i<=hi;i++){
+      var p = isFinite(freq[i]) ? Math.pow(10,freq[i]/10) : 0;
+      sum+=p; wsum+=p*i*binHz; logsum+=Math.log(p+1e-20); cnt++;
+    }
+    return { cen: sum>0 ? wsum/sum : 0, flat: sum>0 ? Math.exp(logsum/cnt)/(sum/cnt) : 0 };
+  }
+
+  // ---------- analysis ----------
+  function analyze(frames, floor, dur){
+    var voiced = frames.filter(function(f){ return f.f0>0; });
+    var vf = voiced.length/frames.length;
+    var peak = -200; frames.forEach(function(f){ if(f.db>peak) peak=f.db; });
+    var peakRel = peak-floor;
+    var cen = median(frames.map(function(f){return f.cen;}));
+    var flat = median(frames.map(function(f){return f.flat;}));
+    var med = voiced.length ? median(voiced.map(function(f){return f.f0;})) : 0;
+
+    var type;
+    if(vf>=0.35 && med>0) type = (med<330 && dur>0.7) ? 'yowl' : 'meow';
+    else if(flat>0.3 && cen>2500) type='hiss';
+    else if(cen<900 && dur>0.6) type='purr';
+    else type='other';
+
+    // attack speed
+    var attack = dur;
+    for(var i=0;i<frames.length;i++){ if(frames[i].db>=peak-3){ attack=frames[i].t; break; } }
+    var fast = attack<0.05;
+
+    // ending direction
+    var endLabel='—', endSub='高さの変化なし';
+    if(voiced.length>=6){
+      var early = voiced.filter(function(f){return f.t < dur*0.6;}).map(function(f){return f.f0;});
+      var late = voiced.filter(function(f){return f.t >= dur*0.7;}).map(function(f){return f.f0;});
+      if(early.length && late.length){
+        var d = semis(median(late), median(early));
+        if(d>1.5){ endLabel='上がる ↗'; endSub='問いかけるような声'; }
+        else if(d<-1.5){ endLabel='下がる ↘'; endSub='落ち着いていく声'; }
+        else { endLabel='平ら →'; endSub='高さはほぼ一定'; }
+      }
+    }
+
+    var units, kind;
+    if(type==='meow'){
+      var head = fast ? 'ニャ' : 'ミャ';
+      if(dur<0.2) units=[head,'ッ'];
+      else if(dur<0.45) units=[head];
+      else if(dur<0.8) units=[head,'ー'];
+      else units=[head,'ア'].concat(rep('ア', Math.min(14, Math.round((dur-0.8)/0.15))));
+      kind='鳴き声';
+    } else if(type==='yowl'){
+      units=['ア'].concat(rep('ア', Math.min(10, Math.round((dur-0.7)/0.2)))).concat(['オ','ー','ン']);
+      kind='低く長い鳴き声';
+    } else if(type==='hiss'){
+      units = dur<0.3 ? ['ハ','ッ'] : ['シャ','ー'].concat(rep('ー', Math.min(10, Math.round((dur-0.5)/0.2))));
+      kind='「シャー」という息の音かも';
+    } else if(type==='purr'){
+      var r = clamp(Math.round(dur/0.35),2,8), u=[];
+      for(var k=0;k<r;k++){ u.push('ゴ'); u.push('ロ'); }
+      units=u; kind='ゴロゴロかも';
+    } else {
+      units=['・','・','・']; kind='鳴き声以外の音かも';
+    }
+    var loud = peakRel>=26;
+    if(!loud) units = units.map(toHira);
+
+    // per-unit pitch and loudness
+    var ref = med || 1;
+    function frameAt(t){ var best=frames[0]; for(var i=0;i<frames.length;i++){ if(Math.abs(frames[i].t-t)<Math.abs(best.t-t)) best=frames[i]; } return best; }
+    function pitchAt(t){
+      if(!voiced.length) return 0;
+      var best=null; voiced.forEach(function(f){ if(!best || Math.abs(f.t-t)<Math.abs(best.t-t)) best=f; });
+      return Math.abs(best.t-t)<0.2 ? clamp(semis(best.f0,ref),-12,12) : 0;
+    }
+    var n = units.length;
+    var shaped = units.map(function(u,i){
+      var t=(i+0.5)/n*dur, f=frameAt(t);
+      return { u:u, semi: type==='meow'||type==='yowl' ? pitchAt(t) : 0, loud: clamp((f.db-floor)/40,0,1) };
+    });
+
+    // contour (40 samples)
+    var contour=[];
+    for(var j=0;j<40;j++){
+      var tt=j/39*dur, ff=frameAt(tt), p=null;
+      if(voiced.length){
+        var nb=null; voiced.forEach(function(f){ if(!nb || Math.abs(f.t-tt)<Math.abs(nb.t-tt)) nb=f; });
+        if(Math.abs(nb.t-tt)<0.06) p = Math.round(clamp(semis(nb.f0,ref),-12,12)*10)/10;
+      }
+      contour.push({p:p, l:Math.round(clamp((ff.db-floor)/40,0,1)*100)/100});
+    }
+
+    var pitchLabel='—', pitchSub='音の高さなし';
+    if(med){
+      pitchLabel = med<450 ? '低め' : (med<850 ? 'ふつう' : '高め');
+      pitchSub = '約' + Math.round(med) + 'Hz';
+    }
+    var lenSub = dur<0.25 ? '短い' : (dur<0.8 ? 'ふつう' : '長い');
+    var vol = peakRel<16 ? '小さい' : (peakRel<28 ? 'ふつう' : '大きい');
+    var volSub = peakRel<16 ? 'ささやくような声' : (peakRel<28 ? 'いつもの声' : 'はっきり大きな声');
+
+    return { ts:Date.now(), type:type, kind:kind, dur:Math.round(dur*100)/100, units:shaped,
+      contour:contour, pitchLabel:pitchLabel, pitchSub:pitchSub, lenSub:lenSub,
+      endLabel:endLabel, endSub:endSub, vol:vol, volSub:volSub };
+  }
+
+  // ---------- rendering ----------
+  function renderWord(r){
+    var box=$('word'); box.className='word'; box.innerHTML='';
+    var W = box.clientWidth || 320;
+    var em=0;
+    r.units.forEach(function(x){ em += (x.u.length>1?1.75:1)*(0.7+0.6*x.loud); });
+    var base = clamp((W-12)/em, 18, 76);
+    r.units.forEach(function(x){
+      var s=document.createElement('span');
+      s.textContent=x.u;
+      s.style.fontSize = (base*(0.7+0.6*x.loud)).toFixed(1)+'px';
+      s.style.transform = 'translateY(' + (-x.semi*base*0.13).toFixed(1) + 'px)';
+      box.appendChild(s);
+    });
+  }
+
+  function contourSvg(c, w, h, strokeW){
+    var n=c.length, env='M0 '+h, i;
+    for(i=0;i<n;i++) env+=' L'+(i/(n-1)*w).toFixed(2)+' '+(h - c[i].l*h*0.6).toFixed(2);
+    env+=' L'+w+' '+h+' Z';
+    var path='', pen=false;
+    for(i=0;i<n;i++){
+      if(c[i].p===null){ pen=false; continue; }
+      var x=(i/(n-1)*w).toFixed(2), y=(h/2 - c[i].p*(h/2-4)/12).toFixed(2);
+      path += (pen?' L':' M')+x+' '+y; pen=true;
+    }
+    return '<path class="env" d="'+env+'"/>' + (path ? '<path class="pitch" d="'+path+'" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>' : '');
+  }
+
+  function showResult(r){
+    current=r;
+    $('kind').textContent=r.kind;
+    renderWord(r);
+    $('contour').innerHTML = contourSvg(r.contour,100,50,3);
+    $('cLen').textContent = r.dur.toFixed(1)+'秒';
+    $('cLenS').textContent = r.lenSub;
+    $('lenBar').style.width = clamp(r.dur/3*100,3,100)+'%';
+    $('cPitch').textContent = r.pitchLabel; $('cPitchS').textContent = r.pitchSub;
+    $('cEnd').textContent = r.endLabel; $('cEndS').textContent = r.endSub;
+    $('cVol').textContent = r.vol; $('cVolS').textContent = r.volSub;
+  }
+
+  function wordText(r){ return r.units.map(function(x){return x.u;}).join(''); }
+  function hhmm(ts){ var d=new Date(ts); return d.getHours()+':'+String(d.getMinutes()).padStart(2,'0'); }
+
+  function renderHistory(){
+    var ul=$('hist'); ul.innerHTML='';
+    if(!history.length){ var li=document.createElement('li'); li.className='none'; li.textContent='まだ記録はありません。'; ul.appendChild(li); return; }
+    history.forEach(function(r,idx){
+      var li=document.createElement('li'), b=document.createElement('button');
+      b.type='button';
+      b.setAttribute('aria-label', hhmm(r.ts)+' '+wordText(r)+' を表示');
+      b.innerHTML='<span class="t"></span><span class="w"></span><svg viewBox="0 0 64 28" preserveAspectRatio="none" aria-hidden="true"></svg>';
+      b.querySelector('.t').textContent=hhmm(r.ts);
+      var w=b.querySelector('.w'); w.textContent=wordText(r);
+      var info=document.createElement('span'); info.className='i';
+      info.textContent = r.dur.toFixed(1)+'秒・高さ'+r.pitchLabel+'・語尾'+r.endLabel+'・'+r.vol;
+      w.appendChild(info);
+      b.querySelector('svg').innerHTML = contourSvg(r.contour,64,28,2);
+      b.addEventListener('click', function(){ showResult(history[idx]); $('stage').scrollIntoView({behavior:'smooth',block:'start'}); });
+      li.appendChild(b); ul.appendChild(li);
+    });
+  }
+
+  function saveHistory(){ try{ localStorage.setItem(HKEY, JSON.stringify(history)); }catch(e){} }
+  function loadHistory(){
+    try{ var s=localStorage.getItem(HKEY); var h = s ? JSON.parse(s) : []; history = Array.isArray(h) ? h : []; }catch(e){ history=[]; }
+  }
+
+  function flash(){
+    var st=$('stage'); st.classList.add('flash');
+    setTimeout(function(){ st.classList.remove('flash'); }, 60);
+  }
+
+  function setStatus(text, mode){
+    $('status').textContent=text;
+    $('dot').className='dot'+(mode?' '+mode:'');
+  }
+
+  // ---------- audio loop ----------
+  function finish(){
+    var e=ev; ev=null; aboveCount=0;
+    var endT=(e.lastAbove-e.start)/1000;
+    var frames=e.frames.filter(function(f){ return f.t<=endT+0.02; });
+    var dur=endT+0.03;
+    setStatus('聞いています', 'on');
+    if(dur<0.08 || frames.length<3) return;
+    var r=analyze(frames, e.floor, dur);
+    showResult(r);
+    history.unshift(r); if(history.length>40) history.length=40;
+    saveHistory(); renderHistory();
+    flash();
+  }
+
+  function tick(){
+    if(!running) return;
+    analyser.getFloatTimeDomainData(timeBuf);
+    var now=performance.now();
+    var db=rmsDb(timeBuf);
+    if(db < -140){ silentCount++; } else { silentCount=0; if(silentWarned){ silentWarned=false; showError(''); } }
+    if(silentCount>150 && !silentWarned){
+      silentWarned=true;
+      try{ ctx.resume(); }catch(e){}
+      showError('マイクの音が届いていません（状態：'+(ctx?ctx.state:'なし')+'）。一度「聞き取りを止める」を押して、もう一度「聞き取りを始める」を押してください。');
+    }
+
+    if(!ev){
+      if(now-startT<700){ floorDb = floorDb*0.8 + db*0.2; }
+      else if(db<floorDb){ floorDb = floorDb*0.8 + db*0.2; }
+      else { floorDb = floorDb*0.995 + db*0.005; }
+      floorDb = clamp(floorDb,-85,-20);
+    }
+    var th = floorDb+margin;
+
+    $('lvl').style.width = clamp((db+85)/70*100,0,100)+'%';
+    $('th').style.left = clamp((th+85)/70*100,0,99)+'%';
+
+    if(now-startT>=700){
+      if(!ev){
+        if(db>th){ aboveCount++; if(aboveCount>=2){ ev={start:now-17, frames:[], floor:floorDb, lastAbove:now}; } }
+        else aboveCount=0;
+        if(!ev && $('status').textContent!=='聞いています') setStatus('聞いています','on');
+      }
+      if(ev){
+        analyser.getFloatFrequencyData(freqBuf);
+        var sp=spectral(freqBuf);
+        ev.frames.push({ t:(now-ev.start)/1000, db:db, f0:yin(timeBuf), cen:sp.cen, flat:sp.flat });
+        if(db>th-2) ev.lastAbove=now;
+        if(now-ev.lastAbove>180 || now-ev.start>8000) finish();
+        else if(now-lastLive>100){
+          lastLive=now;
+          var el=(now-ev.start)/1000;
+          setStatus('鳴いています… '+el.toFixed(1)+'秒','voice');
+          $('lenBar').style.width = clamp(el/3*100,3,100)+'%';
+        }
+      }
+    }
+    raf=requestAnimationFrame(tick);
+  }
+
+  async function requestWake(){
+    try{ if('wakeLock' in navigator) wake = await navigator.wakeLock.request('screen'); }catch(e){ wake=null; }
+  }
+
+  function showError(msg){ var e=$('err'); e.textContent=msg; e.hidden=!msg; }
+
+  async function start(){
+    showError('');
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      showError('この画面ではマイクが使えません。ページのリンクをSafariで直接開いてから、もう一度押してください。');
+      return;
+    }
+    // iPhoneでは、ボタンを押したその瞬間に音の処理を起動しないと止まったままになるため先に作る
+    try{
+      ctx = new (window.AudioContext||window.webkitAudioContext)();
+      ctx.resume();
+    }catch(e){ ctx=null; }
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    }catch(e){
+      stopStream();
+      showError('マイクを使えませんでした（'+(e&&e.name?e.name:'不明')+'）。Safariのアドレスバー横のボタンから「Webサイトの設定」を開き、マイクが「許可」になっているか確かめてください。');
+      return;
+    }
+    try{
+      if(!ctx) ctx = new (window.AudioContext||window.webkitAudioContext)();
+      if(ctx.state!=='running') await ctx.resume();
+      sr = ctx.sampleRate;
+      var src = ctx.createMediaStreamSource(stream);
+      analyser = ctx.createAnalyser(); analyser.fftSize=2048; analyser.smoothingTimeConstant=0;
+      src.connect(analyser);
+      var mute = ctx.createGain(); mute.gain.value = 0;
+      analyser.connect(mute); mute.connect(ctx.destination);
+      timeBuf = new Float32Array(analyser.fftSize);
+      freqBuf = new Float32Array(analyser.frequencyBinCount);
+    }catch(e){
+      showError('音の処理を始められませんでした。ページを開き直して、もう一度押してください。');
+      stopStream(); return;
+    }
+    running=true; startT=performance.now(); floorDb=-60; ev=null; aboveCount=0; silentCount=0; silentWarned=false;
+    setStatus('まわりの静かさを測っています…','on');
+    var b=$('toggle'); b.textContent='聞き取りを止める'; b.classList.add('stop');
+    requestWake();
+    raf=requestAnimationFrame(tick);
+  }
+
+  function stopStream(){
+    if(stream){ stream.getTracks().forEach(function(t){t.stop();}); stream=null; }
+    if(ctx){ try{ ctx.close(); }catch(e){} ctx=null; }
+  }
+
+  function stop(){
+    running=false; cancelAnimationFrame(raf); ev=null;
+    stopStream();
+    try{ if(wake) wake.release(); }catch(e){} wake=null;
+    setStatus('止まっています','');
+    $('lvl').style.width='0';
+    var b=$('toggle'); b.textContent='聞き取りを始める'; b.classList.remove('stop');
+  }
+
+  $('toggle').addEventListener('click', function(){ running ? stop() : start(); });
+  $('sens').addEventListener('input', function(){
+    var v=+this.value; $('sensV').textContent=v; margin = 26 - v*2;
+  });
+  $('clear').addEventListener('click', function(){
+    if(!history.length) return;
+    if(confirm('これまでの声の記録をすべて消しますか？')){ history=[]; saveHistory(); renderHistory(); }
+  });
+  document.addEventListener('visibilitychange', function(){
+    if(running && document.visibilityState==='visible'){ requestWake(); if(ctx && ctx.state!=='running'){ try{ ctx.resume(); }catch(e){} } }
+  });
+  window.addEventListener('resize', function(){ if(current) renderWord(current); });
+
+  margin = 26 - (+$('sens').value)*2;
+  loadHistory(); renderHistory();
+  if(history.length) showResult(history[0]);
+})();
+</script>
+</body>
+</html>
