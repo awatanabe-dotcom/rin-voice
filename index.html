@@ -105,6 +105,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
 <main>
   <h1>りんちゃんの声</h1>
   <p class="lead">鳴き声の長さ・高さ・大きさを、文字と線で表示します。</p>
+  <p class="lead" id="ainote">AI判定を準備しています…</p>
 
   <section class="stage" id="stage" aria-live="polite">
     <div class="status"><span class="dot" id="dot"></span><span id="status">止まっています</span></div>
@@ -153,6 +154,8 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
   var floorDb = -60, startT = 0, aboveCount = 0, ev = null, lastLive = 0;
   var silentCount = 0, silentWarned = false;
   var strict = true, ignored = 0;
+  var classifier = null, aiState = 'loading';
+  var RING = null, ringPos = 0, ringTotal = 0, proc = null;
   var margin = 14;
   var history = [];
   var current = null;
@@ -200,6 +203,57 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     return { cen: sum>0 ? wsum/sum : 0, flat: sum>0 ? Math.exp(logsum/cnt)/(sum/cnt) : 0 };
   }
 
+  // ---------- AI（YAMNet：猫の声・人の声などを聞き分けるモデル）----------
+  var AI_BASE='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-audio@0.10.0';
+  function updateAiNote(){
+    $('ainote').textContent = aiState==='ready' ? 'AIで、猫の声か人の声かを聞き分けています。'
+      : aiState==='failed' ? 'AI判定を読み込めませんでした。音の特徴だけで判定しています（インターネットにつないで、ページを開き直してください）。'
+      : 'AI判定を準備しています…';
+  }
+  (async function(){
+    try{
+      var m = await import(AI_BASE);
+      var fs = await m.FilesetResolver.forAudioTasks(AI_BASE+'/wasm');
+      classifier = await m.AudioClassifier.createFromOptions(fs, {
+        baseOptions:{ modelAssetPath:'https://storage.googleapis.com/mediapipe-models/audio_classifier/yamnet/float32/1/yamnet.tflite' },
+        maxResults:30
+      });
+      aiState='ready';
+    }catch(err){ aiState='failed'; }
+    updateAiNote();
+  })();
+
+  function getClip(fromS, toS){
+    if(!RING) return null;
+    var L=RING.length;
+    fromS=Math.max(fromS, ringTotal-L+1, 0); toS=Math.min(toS, ringTotal);
+    var n=toS-fromS; if(n<=0) return null;
+    var out=new Float32Array(n);
+    var st=((ringPos-(ringTotal-fromS))%L+L)%L;
+    for(var i=0;i<n;i++) out[i]=RING[(st+i)%L];
+    return out;
+  }
+
+  function classifyClip(clip){
+    if(!classifier || !clip) return null;
+    try{
+      var res=classifier.classify(clip, sr);
+      var cat=0,purr=0,hiss=0,cater=0,speech=0;
+      var SP=['Speech','Female speech, woman speaking','Male speech, man speaking','Child speech, kid speaking','Conversation','Narration, monologue','Babbling','Shout','Yell','Singing','Laughter','Humming'];
+      res.forEach(function(chunk){
+        var cs = chunk.classifications && chunk.classifications[0] ? chunk.classifications[0].categories : [];
+        var s={}; cs.forEach(function(c){ s[c.categoryName]=c.score; });
+        cat=Math.max(cat, s['Cat']||0, s['Meow']||0);
+        purr=Math.max(purr, s['Purr']||0); hiss=Math.max(hiss, s['Hiss']||0); cater=Math.max(cater, s['Caterwaul']||0);
+        SP.forEach(function(k){ speech=Math.max(speech, s[k]||0); });
+      });
+      var all=Math.max(cat,purr,hiss,cater);
+      var kind='meow';
+      if(purr===all && purr>cat) kind='purr'; else if(hiss===all && hiss>cat) kind='hiss'; else if(cater===all && cater>cat) kind='yowl';
+      return { isCat: all>=0.12 && all>=speech*0.5, kind:kind, cat:all, speech:speech };
+    }catch(err){ return null; }
+  }
+
   function listenText(){ return ignored ? '聞いています（関係ない音を'+ignored+'回無視）' : '聞いています'; }
   function visibleHistory(){ return strict ? history.filter(function(r){ return r.isCat; }) : history; }
   // 音の大きさが何回「下がってまた上がった」か（人の話し声は何度も上下する）
@@ -214,7 +268,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
   }
 
   // ---------- analysis ----------
-  function analyze(frames, floor, dur){
+  function analyze(frames, floor, dur, forceType){
     var voiced = frames.filter(function(f){ return f.f0>0; });
     var vf = voiced.length/frames.length;
     var peak = -200; frames.forEach(function(f){ if(f.db>peak) peak=f.db; });
@@ -226,13 +280,14 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     var dips = countDips(frames);
     var type;
     if(vf>=0.35 && med>0){
-      if(med>=380) type='meow';
+      if(med>=300) type='meow';
       else if(med>=250 && dur>0.8 && dips<=1 && vf>=0.6) type='yowl';
       else type='voice';
     }
     else if(flat>0.3 && cen>2500) type='hiss';
     else if(cen<900 && dur>0.6) type='purr';
     else type='other';
+    if(forceType && !(forceType==='meow' && (type==='meow'||type==='yowl'))) type=forceType;
 
     // attack speed
     var attack = dur;
@@ -312,7 +367,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     var vol = peakRel<16 ? '小さい' : (peakRel<28 ? 'ふつう' : '大きい');
     var volSub = peakRel<16 ? 'ささやくような声' : (peakRel<28 ? 'いつもの声' : 'はっきり大きな声');
 
-    var isCat = (type==='meow' && vf>=0.5 && dips<=1 && dur>=0.15 && dur<=4) || (type==='yowl' && dur<=5);
+    var isCat = (type==='meow' && vf>=0.4 && dips<=2 && dur>=0.12 && dur<=5) || (type==='yowl' && dur<=5);
     return { ts:Date.now(), isCat:isCat, type:type, kind:kind, dur:Math.round(dur*100)/100, units:shaped,
       contour:contour, pitchLabel:pitchLabel, pitchSub:pitchSub, lenSub:lenSub,
       endLabel:endLabel, endSub:endSub, vol:vol, volSub:volSub };
@@ -372,7 +427,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
 
   function showResult(r){
     current=r;
-    $('kind').textContent=r.kind;
+    $('kind').textContent = r.kind + (typeof r.aiCat==='number' ? '（猫らしさ '+Math.round(r.aiCat*100)+'%）' : '');
     renderWord(r);
     $('contour').innerHTML = contourSvg(r.contour,100,50,3);
     $('cLen').textContent = r.dur.toFixed(1)+'秒';
@@ -433,7 +488,14 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     var frames=e.frames.filter(function(f){ return f.t<=endT+0.02; });
     var dur=endT+0.03;
     if(dur<0.08 || frames.length<3){ setStatus(listenText(),'on'); return; }
-    var r=analyze(frames, e.floor, dur);
+    var ai=null;
+    if(RING){
+      var endS=ringTotal, fromS=Math.min(e.startSample-Math.round(sr*0.4), endS-Math.round(sr*1.05));
+      ai=classifyClip(getClip(fromS, endS));
+    }
+    var force = ai ? (ai.isCat ? ai.kind : (ai.speech>=0.3 ? 'voice' : 'other')) : null;
+    var r=analyze(frames, e.floor, dur, force);
+    if(ai){ r.isCat = ai.isCat; r.aiCat = Math.round(ai.cat*100)/100; }
     if(strict && !r.isCat){ ignored++; setStatus(listenText(),'on'); return; }
     setStatus(listenText(),'on');
     r.repeat = !!(history[0] && r.ts - history[0].ts < 5000 && history[0].isCat);
@@ -468,7 +530,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
 
     if(now-startT>=700){
       if(!ev){
-        if(db>th){ aboveCount++; if(aboveCount>=2){ ev={start:now-17, frames:[], floor:floorDb, lastAbove:now}; } }
+        if(db>th){ aboveCount++; if(aboveCount>=2){ ev={start:now-17, frames:[], floor:floorDb, lastAbove:now, startSample:ringTotal}; } }
         else aboveCount=0;
         if(!ev && $('status').textContent.indexOf('聞いています')!==0) setStatus(listenText(),'on');
       }
@@ -521,6 +583,15 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
       src.connect(analyser);
       var mute = ctx.createGain(); mute.gain.value = 0;
       analyser.connect(mute); mute.connect(ctx.destination);
+      RING = new Float32Array(Math.round(sr*12)); ringPos=0; ringTotal=0;
+      proc = ctx.createScriptProcessor(4096,1,1);
+      proc.onaudioprocess = function(evt){
+        if(!RING) return;
+        var d=evt.inputBuffer.getChannelData(0), L=RING.length;
+        for(var i=0;i<d.length;i++){ RING[ringPos]=d[i]; ringPos=(ringPos+1)%L; }
+        ringTotal+=d.length;
+      };
+      src.connect(proc); proc.connect(mute);
       timeBuf = new Float32Array(analyser.fftSize);
       freqBuf = new Float32Array(analyser.frequencyBinCount);
     }catch(e){
@@ -537,6 +608,8 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
   function stopStream(){
     if(stream){ stream.getTracks().forEach(function(t){t.stop();}); stream=null; }
     if(ctx){ try{ ctx.close(); }catch(e){} ctx=null; }
+    if(proc){ proc.onaudioprocess=null; proc=null; }
+    RING=null;
   }
 
   function stop(){
