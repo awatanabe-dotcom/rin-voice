@@ -48,8 +48,8 @@ h1{font-size:1.3rem;font-weight:900;margin:0}
 .word span{display:inline-block;line-height:1}
 .word.empty{color:var(--muted);font-size:2.6rem;letter-spacing:.2em}
 .contour{display:block;width:100%;height:48px}
-.contour .env{fill:var(--soft)}
-.contour .pitch{fill:none;stroke:var(--line);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.env{fill:var(--soft)}
+.pitch{fill:none;stroke:var(--line);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .contour-cap{display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-top:2px}
 
 .chips{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
@@ -92,7 +92,9 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
   background:var(--surface);color:var(--ink);border:none;border-radius:16px;padding:10px 12px}
 .hist .t{font-size:.8rem;color:var(--muted)}
 .hist .w{font-weight:900;font-size:1.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hist .i{display:block;font-weight:500;font-size:.78rem;color:var(--muted)}
+.hist .i{display:block;font-weight:500;font-size:.78rem;color:var(--muted);white-space:normal}
+.strict{display:flex;gap:10px;align-items:center;font-size:.95rem;font-weight:700}
+.strict input{width:24px;height:24px;flex:none;accent-color:var(--accent)}
 .hist svg{width:64px;height:28px}
 .none{color:var(--muted);font-size:.9rem}
 .note{margin-top:24px;font-size:.8rem;color:var(--muted)}
@@ -132,6 +134,8 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     <button class="primary" id="toggle">聞き取りを始める</button>
     <label class="sens"><span>感度</span><input type="range" id="sens" min="1" max="10" step="1" value="6"><span id="sensV">6</span></label>
     <p class="hint">関係ない音まで拾うときは感度を下げ、鳴いても反応しないときは上げてください。</p>
+    <label class="strict"><input type="checkbox" id="strict" checked><span>はっきりした鳴き声だけ表示する</span></label>
+    <p class="hint">オフにすると、拾ったすべての音を表示します。りんちゃんが鳴いているのに出てこないときに試してください。</p>
   </div>
 
   <h2>これまでの声 <button class="clear" id="clear">履歴を消す</button></h2>
@@ -148,6 +152,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
   var timeBuf, freqBuf, sr = 48000;
   var floorDb = -60, startT = 0, aboveCount = 0, ev = null, lastLive = 0;
   var silentCount = 0, silentWarned = false;
+  var strict = true, ignored = 0;
   var margin = 14;
   var history = [];
   var current = null;
@@ -195,6 +200,19 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     return { cen: sum>0 ? wsum/sum : 0, flat: sum>0 ? Math.exp(logsum/cnt)/(sum/cnt) : 0 };
   }
 
+  function listenText(){ return ignored ? '聞いています（関係ない音を'+ignored+'回無視）' : '聞いています'; }
+  function visibleHistory(){ return strict ? history.filter(function(r){ return r.isCat; }) : history; }
+  // 音の大きさが何回「下がってまた上がった」か（人の話し声は何度も上下する）
+  function countDips(frames){
+    var dips=0, hi=-200, lo=200, down=false;
+    frames.forEach(function(f){
+      var v=f.db;
+      if(!down){ if(v>hi) hi=v; if(v<hi-8){ down=true; lo=v; } }
+      else { if(v<lo) lo=v; if(v>lo+6){ dips++; down=false; hi=v; } }
+    });
+    return dips;
+  }
+
   // ---------- analysis ----------
   function analyze(frames, floor, dur){
     var voiced = frames.filter(function(f){ return f.f0>0; });
@@ -205,8 +223,13 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     var flat = median(frames.map(function(f){return f.flat;}));
     var med = voiced.length ? median(voiced.map(function(f){return f.f0;})) : 0;
 
+    var dips = countDips(frames);
     var type;
-    if(vf>=0.35 && med>0) type = (med<330 && dur>0.7) ? 'yowl' : 'meow';
+    if(vf>=0.35 && med>0){
+      if(med>=380) type='meow';
+      else if(med>=250 && dur>0.8 && dips<=1 && vf>=0.6) type='yowl';
+      else type='voice';
+    }
     else if(flat>0.3 && cen>2500) type='hiss';
     else if(cen<900 && dur>0.6) type='purr';
     else type='other';
@@ -247,6 +270,8 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
       var r = clamp(Math.round(dur/0.35),2,8), u=[];
       for(var k=0;k<r;k++){ u.push('ゴ'); u.push('ロ'); }
       units=u; kind='ゴロゴロかも';
+    } else if(type==='voice'){
+      units=['・','・','・']; kind='人の声かも';
     } else {
       units=['・','・','・']; kind='鳴き声以外の音かも';
     }
@@ -287,7 +312,8 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     var vol = peakRel<16 ? '小さい' : (peakRel<28 ? 'ふつう' : '大きい');
     var volSub = peakRel<16 ? 'ささやくような声' : (peakRel<28 ? 'いつもの声' : 'はっきり大きな声');
 
-    return { ts:Date.now(), type:type, kind:kind, dur:Math.round(dur*100)/100, units:shaped,
+    var isCat = (type==='meow' && vf>=0.5 && dips<=1 && dur>=0.15 && dur<=4) || (type==='yowl' && dur<=5);
+    return { ts:Date.now(), isCat:isCat, type:type, kind:kind, dur:Math.round(dur*100)/100, units:shaped,
       contour:contour, pitchLabel:pitchLabel, pitchSub:pitchSub, lenSub:lenSub,
       endLabel:endLabel, endSub:endSub, vol:vol, volSub:volSub };
   }
@@ -330,6 +356,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     } else if(t==='yowl') main=['不安・落ち着かない','低く長い声は、不安やストレス、避妊・去勢をしていない猫では発情の呼び声のことがあります。急に増えたときや夜に何度も鳴くときは、体の不調のこともあるので獣医さんに相談してください。'];
     else if(t==='hiss') main=['こわい・近づかないで','怖がっていたり警戒しているときのサインです。無理に近づかず、そっとしておくのがよいとされます。'];
     else if(t==='purr') main=['くつろぎ（ときどき不調）','ゴロゴロは満足しているときが多いですが、具合が悪いときに自分を落ち着かせるために鳴らすこともあります。'];
+    else if(t==='voice') main=['人の声かも','人の話し声など、猫より低い声を拾った可能性があります。'];
     else main=['鳴き声以外の音かも','物音や人の声を拾った可能性があります。'];
     if(t==='meow'||t==='yowl'){
       if(r.repeat) extra.push('続けて鳴いているときは、「気づいて！」という気持ちが強いことが多いです。');
@@ -366,8 +393,9 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
 
   function renderHistory(){
     var ul=$('hist'); ul.innerHTML='';
-    if(!history.length){ var li=document.createElement('li'); li.className='none'; li.textContent='まだ記録はありません。'; ul.appendChild(li); return; }
-    history.forEach(function(r,idx){
+    var list = visibleHistory();
+    if(!list.length){ var li=document.createElement('li'); li.className='none'; li.textContent='まだ記録はありません。'; ul.appendChild(li); return; }
+    list.forEach(function(r){
       var li=document.createElement('li'), b=document.createElement('button');
       b.type='button';
       b.setAttribute('aria-label', hhmm(r.ts)+' '+wordText(r)+' を表示');
@@ -378,7 +406,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
       info.textContent = hints(r).title+'｜'+r.dur.toFixed(1)+'秒・高さ'+r.pitchLabel+'・語尾'+r.endLabel+'・'+r.vol;
       w.appendChild(info);
       b.querySelector('svg').innerHTML = contourSvg(r.contour,64,28,2);
-      b.addEventListener('click', function(){ showResult(history[idx]); $('stage').scrollIntoView({behavior:'smooth',block:'start'}); });
+      b.addEventListener('click', function(){ showResult(r); $('stage').scrollIntoView({behavior:'smooth',block:'start'}); });
       li.appendChild(b); ul.appendChild(li);
     });
   }
@@ -404,10 +432,11 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
     var endT=(e.lastAbove-e.start)/1000;
     var frames=e.frames.filter(function(f){ return f.t<=endT+0.02; });
     var dur=endT+0.03;
-    setStatus('聞いています', 'on');
-    if(dur<0.08 || frames.length<3) return;
+    if(dur<0.08 || frames.length<3){ setStatus(listenText(),'on'); return; }
     var r=analyze(frames, e.floor, dur);
-    r.repeat = !!(history[0] && r.ts - history[0].ts < 5000 && history[0].type!=='other');
+    if(strict && !r.isCat){ ignored++; setStatus(listenText(),'on'); return; }
+    setStatus(listenText(),'on');
+    r.repeat = !!(history[0] && r.ts - history[0].ts < 5000 && history[0].isCat);
     showResult(r);
     history.unshift(r); if(history.length>40) history.length=40;
     saveHistory(); renderHistory();
@@ -441,7 +470,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
       if(!ev){
         if(db>th){ aboveCount++; if(aboveCount>=2){ ev={start:now-17, frames:[], floor:floorDb, lastAbove:now}; } }
         else aboveCount=0;
-        if(!ev && $('status').textContent!=='聞いています') setStatus('聞いています','on');
+        if(!ev && $('status').textContent.indexOf('聞いています')!==0) setStatus(listenText(),'on');
       }
       if(ev){
         analyser.getFloatFrequencyData(freqBuf);
@@ -452,8 +481,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
         else if(now-lastLive>100){
           lastLive=now;
           var el=(now-ev.start)/1000;
-          setStatus('鳴いています… '+el.toFixed(1)+'秒','voice');
-          $('lenBar').style.width = clamp(el/3*100,3,100)+'%';
+          setStatus('音を調べています… '+el.toFixed(1)+'秒','voice');
         }
       }
     }
@@ -499,7 +527,7 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
       showError('音の処理を始められませんでした。ページを開き直して、もう一度押してください。');
       stopStream(); return;
     }
-    running=true; startT=performance.now(); floorDb=-60; ev=null; aboveCount=0; silentCount=0; silentWarned=false;
+    running=true; startT=performance.now(); floorDb=-60; ev=null; aboveCount=0; silentCount=0; silentWarned=false; ignored=0;
     setStatus('まわりの静かさを測っています…','on');
     var b=$('toggle'); b.textContent='聞き取りを止める'; b.classList.add('stop');
     requestWake();
@@ -534,8 +562,15 @@ h2{font-size:1.05rem;font-weight:900;margin:28px 0 8px;display:flex;justify-cont
   window.addEventListener('resize', function(){ if(current) renderWord(current); });
 
   margin = 26 - (+$('sens').value)*2;
+  try{ strict = localStorage.getItem('rin-voice-strict')!=='0'; }catch(e){}
+  $('strict').checked = strict;
+  $('strict').addEventListener('change', function(){
+    strict=this.checked;
+    try{ localStorage.setItem('rin-voice-strict', strict?'1':'0'); }catch(e){}
+    renderHistory();
+  });
   loadHistory(); renderHistory();
-  if(history.length) showResult(history[0]);
+  var vis = visibleHistory(); if(vis.length) showResult(vis[0]);
 })();
 </script>
 </body>
